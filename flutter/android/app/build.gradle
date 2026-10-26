@@ -99,10 +99,14 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId "com.carriez.flutter_hbb"
+        // TerraSmart Destek: its own package, installed next to (and then
+        // instead of) the field's com.carriez.flutter_hbb, whose signing key is lost.
+        applicationId "tr.com.terrasmart.destek"
         minSdkVersion 22
         targetSdkVersion 36
-        versionCode flutterVersionCode.toInteger()
+        // Upstream's code times 100 plus TerraSmart's revision (-PterrasmartRevision),
+        // so a fix on the same upstream version still updates over the last build.
+        versionCode flutterVersionCode.toInteger() * 100 + (project.findProperty('terrasmartRevision') ?: '0').toInteger()
         versionName flutterVersionName
     }
 
