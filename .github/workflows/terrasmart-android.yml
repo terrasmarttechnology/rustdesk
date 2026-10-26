@@ -298,9 +298,11 @@ jobs:
       run: |
         f="${{ steps.sign-rustdesk.outputs.signedReleaseFile }}"
         tools="/usr/local/lib/android/sdk/build-tools/${{ env.ANDROID_SIGN_TOOL_VERSION }}"
-        got=$("$tools/apksigner" verify --print-certs "$f" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
-        echo "Signed with $got"
+        out=$("$tools/apksigner" verify --print-certs "$f" 2>&1 || true)
+        got=$(printf '%s\n' "$out" | grep -oiE 'certificate SHA-256 digest: [0-9a-f]{64}' | head -1 | awk '{print $NF}' | tr 'A-F' 'a-f')
+        echo "$f is signed with ${got:-an unreadable certificate}"
         if [ "$got" != "$TERRASMART_CERT_SHA256" ]; then
+          printf '%s\n' "$out" | grep -v '^WARNING'
           echo "::error::$f is not signed with the TerraSmart key"
           exit 1
         fi
@@ -469,9 +471,11 @@ jobs:
       run: |
         f="${{ steps.sign-rustdesk.outputs.signedReleaseFile }}"
         tools="/usr/local/lib/android/sdk/build-tools/${{ env.ANDROID_SIGN_TOOL_VERSION }}"
-        got=$("$tools/apksigner" verify --print-certs "$f" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
-        echo "Signed with $got"
+        out=$("$tools/apksigner" verify --print-certs "$f" 2>&1 || true)
+        got=$(printf '%s\n' "$out" | grep -oiE 'certificate SHA-256 digest: [0-9a-f]{64}' | head -1 | awk '{print $NF}' | tr 'A-F' 'a-f')
+        echo "$f is signed with ${got:-an unreadable certificate}"
         if [ "$got" != "$TERRASMART_CERT_SHA256" ]; then
+          printf '%s\n' "$out" | grep -v '^WARNING'
           echo "::error::$f is not signed with the TerraSmart key"
           exit 1
         fi

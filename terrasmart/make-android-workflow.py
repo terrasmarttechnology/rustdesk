@@ -52,9 +52,11 @@ def check_cert_step():
         "run": Literal(
             'f="${{ steps.sign-rustdesk.outputs.signedReleaseFile }}"\n'
             'tools="/usr/local/lib/android/sdk/build-tools/${{ env.ANDROID_SIGN_TOOL_VERSION }}"\n'
-            'got=$("$tools/apksigner" verify --print-certs "$f" | sed -n \'s/^Signer #1 certificate SHA-256 digest: //p\')\n'
-            'echo "Signed with $got"\n'
+            'out=$("$tools/apksigner" verify --print-certs "$f" 2>&1 || true)\n'
+            "got=$(printf '%s\\n' \"$out\" | grep -oiE 'certificate SHA-256 digest: [0-9a-f]{64}' | head -1 | awk '{print $NF}' | tr 'A-F' 'a-f')\n"
+            'echo "$f is signed with ${got:-an unreadable certificate}"\n'
             'if [ "$got" != "$TERRASMART_CERT_SHA256" ]; then\n'
+            "  printf '%s\\n' \"$out\" | grep -v '^WARNING'\n"
             '  echo "::error::$f is not signed with the TerraSmart key"\n'
             "  exit 1\n"
             "fi\n"
