@@ -191,6 +191,20 @@ jobs:
       with:
         prefix-key: rustdesk-lib-cache-android
         key: ${{ matrix.job.target }}
+    - name: Preset the TerraSmart password
+      shell: bash
+      env:
+        PASSWORD: ${{ secrets.TERRASMART_RUSTDESK_PASSWORD }}
+      run: |
+        if [ -z "$PASSWORD" ]; then
+          echo "::warning::TERRASMART_RUSTDESK_PASSWORD is not set; the app has no preset password"
+          exit 0
+        fi
+        salt=$(openssl rand -hex 8)
+        hash="00$(printf '%s%s' "$PASSWORD" "$salt" | openssl dgst -sha256 -binary | base64)"
+        echo "::add-mask::$hash"
+        echo "TERRASMART_PRESET_PASSWORD_SALT=$salt" >> "$GITHUB_ENV"
+        echo "TERRASMART_PRESET_PASSWORD_HASH=$hash" >> "$GITHUB_ENV"
     - name: Build rustdesk lib
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}

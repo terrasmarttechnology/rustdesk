@@ -101,7 +101,7 @@ android {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         // TerraSmart Destek: its own package, installed next to (and then
         // instead of) the field's com.carriez.flutter_hbb, whose signing key is lost.
-        applicationId "tr.com.terrasmart.destek"
+        applicationId "tr.com.terrasmart.rustdesk"
         minSdkVersion 22
         targetSdkVersion 36
         // Upstream's code times 100 plus TerraSmart's revision (-PterrasmartRevision),

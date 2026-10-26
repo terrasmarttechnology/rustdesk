@@ -9,7 +9,9 @@ they are signed and published:
   publishing an APK signed with a throwaway key (how the field's 1.4.5 lost
   its key);
 - every signed APK must carry TerraSmart's certificate before it is uploaded;
-- the release is tagged destek-<version>-r<revision>.
+- the release is tagged destek-<version>-r<revision>;
+- the secret TERRASMART_RUSTDESK_PASSWORD, when set, becomes the app's preset
+  permanent password; only its salted hash reaches the build.
 
 Run it again after moving the branch onto a new upstream release:
 
@@ -64,6 +66,25 @@ def check_cert_step():
     }
 
 
+def preset_password_step():
+    return {
+        "name": "Preset the TerraSmart password",
+        "shell": "bash",
+        "env": {"PASSWORD": "${{ secrets.TERRASMART_RUSTDESK_PASSWORD }}"},
+        "run": Literal(
+            'if [ -z "$PASSWORD" ]; then\n'
+            '  echo "::warning::TERRASMART_RUSTDESK_PASSWORD is not set; the app has no preset password"\n'
+            "  exit 0\n"
+            "fi\n"
+            "salt=$(openssl rand -hex 8)\n"
+            "hash=\"00$(printf '%s%s' \"$PASSWORD\" \"$salt\" | openssl dgst -sha256 -binary | base64)\"\n"
+            'echo "::add-mask::$hash"\n'
+            'echo "TERRASMART_PRESET_PASSWORD_SALT=$salt" >> "$GITHUB_ENV"\n'
+            'echo "TERRASMART_PRESET_PASSWORD_HASH=$hash" >> "$GITHUB_ENV"\n'
+        ),
+    }
+
+
 def adapt(job):
     job.pop("if", None)  # the universal APK is always built
     needs = job.get("needs", [])
@@ -73,6 +94,8 @@ def adapt(job):
         name = step.get("name", "")
         if name == "Publish unsigned apk package":
             continue
+        if name == "Build rustdesk lib":
+            steps.append(preset_password_step())
         if name == "Sign app APK":
             step.pop("if", None)
             steps.append(step)
