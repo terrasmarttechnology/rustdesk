@@ -1,0 +1,34 @@
+# Opens an issue when RustDesk publishes a release TerraSmart Destek is not on
+# yet. Moving to it is a short manual step (terrasmart/README.md), so a
+# release never reaches the tablets untested.
+name: TerraSmart Destek upstream watch
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare with the latest RustDesk release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ours=$(sed -n 's/^  VERSION: *//p' .github/workflows/terrasmart-android.yml | tr -d "'\"")
+          latest=$(gh api repos/rustdesk/rustdesk/releases/latest --jq .tag_name)
+          echo "TerraSmart Destek is on $ours, RustDesk's latest release is $latest"
+          if [ "$latest" = "$ours" ]; then exit 0; fi
+          title="RustDesk $latest is out (TerraSmart Destek is on $ours)"
+          if gh issue list --state open --search "\"$title\" in:title" --json number --jq 'length' | grep -qv '^0$'; then
+            echo "Issue already open"; exit 0
+          fi
+          gh issue create --title "$title" --body "RustDesk $latest: https://github.com/rustdesk/rustdesk/releases/tag/$latest
+
+          Move TerraSmart Destek onto it with the steps in terrasmart/README.md, build it with the TerraSmart Destek Android workflow, try it on the VERA Development tablets, then roll it out through the panel."
