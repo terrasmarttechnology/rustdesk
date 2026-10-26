@@ -11,7 +11,11 @@ they are signed and published:
 - every signed APK must carry TerraSmart's certificate before it is uploaded;
 - the release is tagged destek-<version>-r<revision>;
 - the secret TERRASMART_RUSTDESK_PASSWORD, when set, becomes the app's preset
-  permanent password; only its salted hash reaches the build.
+  permanent password; only its salted hash reaches the build;
+- apt gives up on a stalled mirror after seconds instead of minutes (runners'
+  Azure mirror sometimes hangs, which stretched builds from ~35 min to 2 h);
+- vcpkg keeps its built packages in a file cache saved with actions/cache,
+  because the x-gha backend upstream uses was removed from vcpkg.
 
 Run it again after moving the branch onto a new upstream release:
 
@@ -28,6 +32,8 @@ OUT = ROOT / ".github/workflows/terrasmart-android.yml"
 # SHA-256 of terrasmart-rustdesk.jks's certificate (CN=Terrasmart, valid to 2053).
 CERT_SHA256 = "b86ff2fa10fbd23712bc22142aff253ce4d2cd5992f6e1a9791dc6042a2dec37"
 JOBS = ["generate-bridge", "build-rustdesk-android", "build-rustdesk-android-universal"]
+VCPKG_CACHE = "${{ github.workspace }}-vcpkg-bincache"
+ACTIONS_CACHE = "actions/cache@caa296126883cff596d87d8935842f9db880ef25"  # v5.1.0
 
 
 class Literal(str):
@@ -85,6 +91,37 @@ def preset_password_step():
     }
 
 
+def apt_timeouts_step():
+    return {
+        "name": "Make apt skip stalled mirrors",
+        "shell": "bash",
+        "run": Literal(
+            "printf '%s\\n' 'Acquire::http::Timeout \"15\";' 'Acquire::https::Timeout \"15\";' 'Acquire::Retries \"5\";' \\\n"
+            "  | sudo tee /etc/apt/apt.conf.d/99terrasmart-timeouts\n"
+        ),
+    }
+
+
+def vcpkg_cache_steps():
+    key = "vcpkg-bincache-${{ matrix.job.target }}-${{ env.VCPKG_COMMIT_ID }}-"
+    return [
+        {
+            "name": "Restore the vcpkg binary cache",
+            "uses": ACTIONS_CACHE,
+            "with": {
+                "path": VCPKG_CACHE,
+                "key": key + "${{ hashFiles('vcpkg.json') }}",
+                "restore-keys": key,
+            },
+        },
+        {
+            "name": "Create the vcpkg binary cache directory",
+            "shell": "bash",
+            "run": f'mkdir -p "{VCPKG_CACHE}"\n',
+        },
+    ]
+
+
 def adapt(job):
     job.pop("if", None)  # the universal APK is always built
     needs = job.get("needs", [])
@@ -94,6 +131,10 @@ def adapt(job):
         name = step.get("name", "")
         if name == "Publish unsigned apk package":
             continue
+        if name == "Install dependencies":
+            steps.append(apt_timeouts_step())
+        if name == "Setup vcpkg with Github Actions binary cache":
+            steps.extend(vcpkg_cache_steps())
         if name == "Build rustdesk lib":
             steps.append(preset_password_step())
         if name == "Sign app APK":
@@ -118,6 +159,7 @@ def main():
     env["TAG_NAME"] = f"destek-{version}-r${{{{ inputs.revision }}}}"
     env["UPLOAD_ARTIFACT"] = "true"
     env["TERRASMART_CERT_SHA256"] = CERT_SHA256
+    env["VCPKG_BINARY_SOURCES"] = f"clear;files,{VCPKG_CACHE},readwrite"
     # Gradle reads -PterrasmartRevision from this (versionCode = upstream * 100 + revision).
     env["ORG_GRADLE_PROJECT_terrasmartRevision"] = "${{ inputs.revision }}"
     for k in ("MACOS_P12_BASE64", "SIGN_BASE_URL"):
