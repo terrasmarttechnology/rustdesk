@@ -55,11 +55,11 @@ jobs:
       if: inputs.headwind_configuration != ''
       env:
         HEADWIND_MDM_URL: ${{ secrets.HEADWIND_MDM_URL }}
-        HEADWIND_MDM_USERNAME: ${{ secrets.HEADWIND_MDM_USERNAME }}
-        HEADWIND_MDM_PASSWORD: ${{ secrets.HEADWIND_MDM_PASSWORD }}
+        HEADWIND_MDM_USERNAME: ${{ secrets.HEADWIND_LOGIN }}
+        HEADWIND_MDM_PASSWORD: ${{ secrets.HEADWIND_PASSWORD }}
       run: |
         for v in HEADWIND_MDM_URL HEADWIND_MDM_USERNAME HEADWIND_MDM_PASSWORD; do
-          if [ -z "${!v}" ]; then echo "::error::Secret $v is missing; add it or leave headwind_configuration empty"; exit 1; fi
+          if [ -z "${!v}" ]; then echo "::error::A Headwind secret (HEADWIND_MDM_URL, HEADWIND_LOGIN, HEADWIND_PASSWORD) is missing; add it or leave headwind_configuration empty"; exit 1; fi
         done
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
@@ -382,7 +382,7 @@ jobs:
       shell: bash
       env:
         HEADWIND_MDM_URL: ${{ secrets.HEADWIND_MDM_URL }}
-        HEADWIND_MDM_USERNAME: ${{ secrets.HEADWIND_MDM_USERNAME }}
-        HEADWIND_MDM_PASSWORD: ${{ secrets.HEADWIND_MDM_PASSWORD }}
+        HEADWIND_MDM_USERNAME: ${{ secrets.HEADWIND_LOGIN }}
+        HEADWIND_MDM_PASSWORD: ${{ secrets.HEADWIND_PASSWORD }}
       run: |
         bash terrasmart/deploy-to-headwind.sh "${{ steps.sign-rustdesk.outputs.signedReleaseFile }}" "${{ inputs.headwind_configuration }}"

@@ -21,8 +21,8 @@ checks every APK carries the certificate `b86ff2fa…2dec37`, and publishes the 
 `destek-<version>-r<revision>`. It then uploads `rustdesk-<version>-universal-signed.apk` to
 Headwind MDM as "TerraSmart Destek" and sets it to install in the configuration given as
 `headwind_configuration` (default `VERA Development`; empty skips Headwind). That needs the
-secrets `HEADWIND_MDM_URL`, `HEADWIND_MDM_USERNAME` and `HEADWIND_MDM_PASSWORD`, the same
-ones terrasmart-vera-android uses.
+secrets `HEADWIND_MDM_URL`, `HEADWIND_LOGIN` and `HEADWIND_PASSWORD` (terrasmart-vera-android
+keeps the same values as `HEADWIND_MDM_URL`, `HEADWIND_MDM_USERNAME`, `HEADWIND_MDM_PASSWORD`).
 
 Only these two workflows run here. The ones inherited from upstream (CI, Full Flutter CI,
 Flutter Tag Build, Fdroid, Nightly, …) are disabled in Actions; GitHub turns Actions off on

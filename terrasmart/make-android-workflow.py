@@ -46,6 +46,12 @@ ABIS = ["aarch64-linux-android", "armv7-linux-androideabi"]
 # its desktop list (GTK, GStreamer, multilib, ...), some 200 packages.
 LIB_PACKAGES = "clang cmake curl git g++ libc6-dev libclang-dev llvm-dev nasm ninja-build pkg-config wget"
 APK_PACKAGES = "openjdk-17-jdk-headless"
+# What deploy-to-headwind.sh reads, from this repository's secrets.
+HEADWIND_ENV = {
+    "HEADWIND_MDM_URL": "${{ secrets.HEADWIND_MDM_URL }}",
+    "HEADWIND_MDM_USERNAME": "${{ secrets.HEADWIND_LOGIN }}",
+    "HEADWIND_MDM_PASSWORD": "${{ secrets.HEADWIND_PASSWORD }}",
+}
 
 
 class Literal(str):
@@ -139,11 +145,7 @@ def deploy_step():
         "name": "Deploy to Headwind MDM",
         "if": "inputs.headwind_configuration != ''",
         "shell": "bash",
-        "env": {
-            "HEADWIND_MDM_URL": "${{ secrets.HEADWIND_MDM_URL }}",
-            "HEADWIND_MDM_USERNAME": "${{ secrets.HEADWIND_MDM_USERNAME }}",
-            "HEADWIND_MDM_PASSWORD": "${{ secrets.HEADWIND_MDM_PASSWORD }}",
-        },
+        "env": dict(HEADWIND_ENV),
         "run": Literal(
             'bash terrasmart/deploy-to-headwind.sh "${{ steps.sign-rustdesk.outputs.signedReleaseFile }}" '
             '"${{ inputs.headwind_configuration }}"\n'
@@ -264,14 +266,10 @@ def main():
                 {
                     "name": "Require the Headwind MDM login",
                     "if": "inputs.headwind_configuration != ''",
-                    "env": {
-                        "HEADWIND_MDM_URL": "${{ secrets.HEADWIND_MDM_URL }}",
-                        "HEADWIND_MDM_USERNAME": "${{ secrets.HEADWIND_MDM_USERNAME }}",
-                        "HEADWIND_MDM_PASSWORD": "${{ secrets.HEADWIND_MDM_PASSWORD }}",
-                    },
+                    "env": dict(HEADWIND_ENV),
                     "run": Literal(
                         "for v in HEADWIND_MDM_URL HEADWIND_MDM_USERNAME HEADWIND_MDM_PASSWORD; do\n"
-                        '  if [ -z "${!v}" ]; then echo "::error::Secret $v is missing; add it or leave headwind_configuration empty"; exit 1; fi\n'
+                        '  if [ -z "${!v}" ]; then echo "::error::A Headwind secret (HEADWIND_MDM_URL, HEADWIND_LOGIN, HEADWIND_PASSWORD) is missing; add it or leave headwind_configuration empty"; exit 1; fi\n'
                         "done\n"
                     ),
                 },
