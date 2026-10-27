@@ -10,6 +10,9 @@ APK) and changes what they build and how it is signed and published:
   library: the per-ABI APKs carried an ABI versionCode offset that would block
   updates to the universal APK, so they are not published;
 - apt installs only what these jobs use instead of upstream's desktop list;
+- the universal APK goes to Headwind MDM as "TerraSmart Destek" and is set to
+  install in the configuration named by the headwind_configuration input
+  (deploy-to-headwind.sh);
 - the build stops when the TerraSmart signing key is missing, instead of
   publishing an APK signed with a throwaway key (how the field's 1.4.5 lost
   its key);
@@ -131,6 +134,23 @@ def vcpkg_cache_steps():
     ]
 
 
+def deploy_step():
+    return {
+        "name": "Deploy to Headwind MDM",
+        "if": "inputs.headwind_configuration != ''",
+        "shell": "bash",
+        "env": {
+            "HEADWIND_MDM_URL": "${{ secrets.HEADWIND_MDM_URL }}",
+            "HEADWIND_MDM_USERNAME": "${{ secrets.HEADWIND_MDM_USERNAME }}",
+            "HEADWIND_MDM_PASSWORD": "${{ secrets.HEADWIND_MDM_PASSWORD }}",
+        },
+        "run": Literal(
+            'bash terrasmart/deploy-to-headwind.sh "${{ steps.sign-rustdesk.outputs.signedReleaseFile }}" '
+            '"${{ inputs.headwind_configuration }}"\n'
+        ),
+    }
+
+
 def replace_once(text, old, new):
     if old not in text:
         raise SystemExit(f"upstream's workflow changed; not found: {old!r}")
@@ -173,6 +193,7 @@ def apk_job(job):
     )
     build["run"] = Literal(run)
     install_packages(job, APK_PACKAGES)
+    job["steps"].append(deploy_step())
     return job
 
 
@@ -236,7 +257,21 @@ def main():
                         '  if [ -z "${!v}" ]; then echo "::error::Signing secret $v is missing; refusing to build"; exit 1; fi\n'
                         "done\n"
                     ),
-                }
+                },
+                {
+                    "name": "Require the Headwind MDM login",
+                    "if": "inputs.headwind_configuration != ''",
+                    "env": {
+                        "HEADWIND_MDM_URL": "${{ secrets.HEADWIND_MDM_URL }}",
+                        "HEADWIND_MDM_USERNAME": "${{ secrets.HEADWIND_MDM_USERNAME }}",
+                        "HEADWIND_MDM_PASSWORD": "${{ secrets.HEADWIND_MDM_PASSWORD }}",
+                    },
+                    "run": Literal(
+                        "for v in HEADWIND_MDM_URL HEADWIND_MDM_USERNAME HEADWIND_MDM_PASSWORD; do\n"
+                        '  if [ -z "${!v}" ]; then echo "::error::Secret $v is missing; add it or leave headwind_configuration empty"; exit 1; fi\n'
+                        "done\n"
+                    ),
+                },
             ],
         }
     }
@@ -253,7 +288,12 @@ def main():
                         "description": "TerraSmart revision on this upstream version (0, 1, ...)",
                         "default": "0",
                         "required": True,
-                    }
+                    },
+                    "headwind_configuration": {
+                        "description": "Headwind configuration to install it in (empty: do not deploy)",
+                        "default": "VERA Development",
+                        "required": False,
+                    },
                 }
             }
         },

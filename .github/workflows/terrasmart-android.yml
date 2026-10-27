@@ -8,6 +8,10 @@ name: TerraSmart Destek Android
         description: TerraSmart revision on this upstream version (0, 1, ...)
         default: '0'
         required: true
+      headwind_configuration:
+        description: 'Headwind configuration to install it in (empty: do not deploy)'
+        default: VERA Development
+        required: false
 permissions:
   contents: write
 env:
@@ -46,6 +50,16 @@ jobs:
       run: |
         for v in KEY ALIAS STORE_PASSWORD KEY_PASSWORD; do
           if [ -z "${!v}" ]; then echo "::error::Signing secret $v is missing; refusing to build"; exit 1; fi
+        done
+    - name: Require the Headwind MDM login
+      if: inputs.headwind_configuration != ''
+      env:
+        HEADWIND_MDM_URL: ${{ secrets.HEADWIND_MDM_URL }}
+        HEADWIND_MDM_USERNAME: ${{ secrets.HEADWIND_MDM_USERNAME }}
+        HEADWIND_MDM_PASSWORD: ${{ secrets.HEADWIND_MDM_PASSWORD }}
+      run: |
+        for v in HEADWIND_MDM_URL HEADWIND_MDM_USERNAME HEADWIND_MDM_PASSWORD; do
+          if [ -z "${!v}" ]; then echo "::error::Secret $v is missing; add it or leave headwind_configuration empty"; exit 1; fi
         done
   generate-bridge:
     uses: ./.github/workflows/bridge.yml
@@ -362,3 +376,12 @@ jobs:
           ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
         target_commitish: ${{ github.sha }}
         name: TerraSmart Destek ${{ env.VERSION }} r${{ inputs.revision }}
+    - name: Deploy to Headwind MDM
+      if: inputs.headwind_configuration != ''
+      shell: bash
+      env:
+        HEADWIND_MDM_URL: ${{ secrets.HEADWIND_MDM_URL }}
+        HEADWIND_MDM_USERNAME: ${{ secrets.HEADWIND_MDM_USERNAME }}
+        HEADWIND_MDM_PASSWORD: ${{ secrets.HEADWIND_MDM_PASSWORD }}
+      run: |
+        bash terrasmart/deploy-to-headwind.sh "${{ steps.sign-rustdesk.outputs.signedReleaseFile }}" "${{ inputs.headwind_configuration }}"

@@ -18,7 +18,11 @@ Updates reach the tablets only through Headwind (panel › Sürümler), never fr
 Actions › **TerraSmart Destek Android** › Run workflow (branch `terrasmart`, revision `0`, or 1, 2,
 … for a TerraSmart fix on the same upstream version). It stops if the signing secrets are missing,
 checks every APK carries the certificate `b86ff2fa…2dec37`, and publishes the release
-`destek-<version>-r<revision>`. Upload `rustdesk-<version>-universal-signed.apk` in the panel.
+`destek-<version>-r<revision>`. It then uploads `rustdesk-<version>-universal-signed.apk` to
+Headwind MDM as "TerraSmart Destek" and sets it to install in the configuration given as
+`headwind_configuration` (default `VERA Development`; empty skips Headwind). That needs the
+secrets `HEADWIND_MDM_URL`, `HEADWIND_MDM_USERNAME` and `HEADWIND_MDM_PASSWORD`, the same
+ones terrasmart-vera-android uses.
 
 ## Moving to a new RustDesk release
 
