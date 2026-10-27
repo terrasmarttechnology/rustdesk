@@ -277,6 +277,10 @@ class MainActivity : FlutterActivity() {
                     requestMediaProjection()
                     result.success(true)
                 }
+                "terrasmart_report_id" -> {
+                    TerraSmartMdm.reportId(this, call.arguments as? String ?: "")
+                    result.success(null)
+                }
                 "start_capture" -> {
                     mainService?.let {
                         result.success(it.startCapture())

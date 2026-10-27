@@ -458,6 +458,8 @@ class ServerModel with ChangeNotifier {
     if (id != _serverId.id) {
       _serverId.id = id;
       notifyListeners();
+      // TerraSmart Destek: tell Headwind MDM, and through it the panel, this tablet's ID.
+      if (isAndroid) parent.target?.invokeMethod("terrasmart_report_id", id);
     }
   }
 

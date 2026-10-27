@@ -24,6 +24,8 @@
             <!-- https://developer.android.com/training/package-visibility/use-cases#open-urls-custom-tabs -->
             <action android:name="android.support.customtabs.action.CustomTabsService" />
         </intent>
+        <!-- TerraSmart Destek: the Headwind MDM launcher, to report the RustDesk ID -->
+        <package android:name="com.hmdm.launcher" />
     </queries>
 
     <application
