@@ -24,35 +24,35 @@ Headwind MDM as "TerraSmart Destek" and sets it to install in the configuration 
 secrets `HEADWIND_MDM_URL`, `HEADWIND_MDM_USERNAME` and `HEADWIND_MDM_PASSWORD`, the same
 ones terrasmart-vera-android uses.
 
+Only these two workflows run here. The ones inherited from upstream (CI, Full Flutter CI,
+Flutter Tag Build, Fdroid, Nightly, …) are disabled in Actions; GitHub turns Actions off on
+forks whose inherited workflows waste compute.
+
 ## Moving to a new RustDesk release
 
-The upstream watch workflow opens an issue when RustDesk releases. Then, with `upstream` =
-`https://github.com/rustdesk/rustdesk` and `libs/hbb_common`'s `upstream` =
-`https://github.com/rustdesk/hbb_common`:
+The **TerraSmart Destek upstream watch** workflow checks every morning. When RustDesk has
+released a version the `terrasmart` branch is not on, it runs `terrasmart/move-to-upstream.sh`:
+our hbb_common commits are replayed on the hbb_common commit the release uses, our commits here
+on the release tag, `libs/hbb_common` points at the result, the workflow is regenerated, and
+both are pushed as `terrasmart-<version>`. It then builds that branch (revision 0) and installs
+it on VERA Development through Headwind, and opens an issue saying so. When a commit does not
+apply, it builds nothing and the issue shows where it stopped.
+
+This needs the secret `TERRASMART_BOT_TOKEN`: a fine-grained token for `terrasmarttechnology`
+with Contents, Workflows and Actions read/write on `rustdesk` and `hbb_common`. The workflow's
+own token cannot push to hbb_common, push workflow changes, or tag a commit whose workflows
+differ from the default branch's, so the release step uses it too.
+
+Once the build works on the VERA Development tablets:
 
 ```sh
-NEW=1.5.1   # the new upstream tag
-git fetch upstream tag $NEW --no-tags
-HB=$(git rev-parse "$NEW:libs/hbb_common")
-
-# hbb_common: the TerraSmart commit on the commit this release uses
-cd libs/hbb_common
-git fetch upstream && git fetch origin
-OURS=$(git rev-parse HEAD)                     # current terrasmart-<old> commit
-git checkout -B terrasmart-$NEW $HB && git cherry-pick $OURS
-git push origin terrasmart-$NEW
-cd ../..
-
-# rustdesk: the TerraSmart commits on the new tag
-OLD=$(sed -n 's/^  VERSION: *//p' .github/workflows/terrasmart-android.yml)
-git checkout -B terrasmart-$NEW $NEW
-git cherry-pick $(git rev-list --reverse $OLD..terrasmart)
-# The first pick stops on libs/hbb_common (both sides moved it); point it at ours:
-#   git -C libs/hbb_common checkout terrasmart-$NEW && git add libs/hbb_common && git cherry-pick --continue
-python3 terrasmart/make-android-workflow.py
-git commit -am "Move TerraSmart Destek to RustDesk $NEW"
-git push origin terrasmart-$NEW
+git push -f origin terrasmart-$NEW:terrasmart
 ```
 
-Build `terrasmart-$NEW`, try it on the VERA Development tablets, then make it the `terrasmart`
-branch (`git push -f origin terrasmart-$NEW:terrasmart`).
+and run the build on `terrasmart` with the next revision and `headwind_configuration`
+`VERA Staging` or `VERA Production`. By hand, the move is the same script; it stops with exit
+status 2 and a message when a commit needs fixing:
+
+```sh
+terrasmart/move-to-upstream.sh 1.5.1 --no-push   # look at terrasmart-1.5.1, then push it
+```

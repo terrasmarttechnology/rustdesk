@@ -374,6 +374,7 @@ jobs:
         tag_name: ${{ env.TAG_NAME }}
         files: |
           ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
+        token: ${{ secrets.TERRASMART_BOT_TOKEN || github.token }}
         target_commitish: ${{ github.sha }}
         name: TerraSmart Destek ${{ env.VERSION }} r${{ inputs.revision }}
     - name: Deploy to Headwind MDM

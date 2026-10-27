@@ -220,6 +220,9 @@ def adapt(job):
         if name in ("Upload Artifacts", "Publish signed apk package"):
             step["if"] = "env.UPLOAD_ARTIFACT == 'true'"
         if name == "Publish signed apk package":
+            # GITHUB_TOKEN may not tag a commit whose workflows differ from the default
+            # branch's (403), which is every build of a terrasmart-<release> branch.
+            step["with"]["token"] = "${{ secrets.TERRASMART_BOT_TOKEN || github.token }}"
             step["with"]["target_commitish"] = "${{ github.sha }}"
             step["with"]["name"] = "TerraSmart Destek ${{ env.VERSION }} r${{ inputs.revision }}"
         steps.append(step)

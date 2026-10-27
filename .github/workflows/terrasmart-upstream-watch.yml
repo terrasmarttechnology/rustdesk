@@ -1,6 +1,8 @@
-# Opens an issue when RustDesk publishes a release TerraSmart Destek is not on
-# yet. Moving to it is a short manual step (terrasmart/README.md), so a
-# release never reaches the tablets untested.
+# Moves TerraSmart Destek onto every new RustDesk release: replays our commits on
+# it (terrasmart/move-to-upstream.sh), builds that branch and installs it on the
+# VERA Development tablets through Headwind. When the commits do not apply, or the
+# TERRASMART_BOT_TOKEN secret is missing, it only opens an issue. The terrasmart
+# branch and the field's configurations move by hand (terrasmart/README.md).
 name: TerraSmart Destek upstream watch
 
 on:
@@ -15,20 +17,82 @@ permissions:
 jobs:
   watch:
     runs-on: ubuntu-24.04
+    env:
+      BOT_TOKEN: ${{ secrets.TERRASMART_BOT_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: terrasmart
+          fetch-depth: 0
+          persist-credentials: false
       - name: Compare with the latest RustDesk release
+        id: compare
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ours=$(sed -n 's/^  VERSION: *//p' .github/workflows/terrasmart-android.yml | tr -d "'\"")
           latest=$(gh api repos/rustdesk/rustdesk/releases/latest --jq .tag_name)
           echo "TerraSmart Destek is on $ours, RustDesk's latest release is $latest"
+          echo "ours=$ours" >> "$GITHUB_OUTPUT"
           if [ "$latest" = "$ours" ]; then exit 0; fi
-          title="RustDesk $latest is out (TerraSmart Destek is on $ours)"
+          if git ls-remote --exit-code --heads origin "terrasmart-$latest" >/dev/null; then
+            echo "terrasmart-$latest exists already; it is waiting to be tried and made the terrasmart branch"
+            exit 0
+          fi
+          echo "new=$latest" >> "$GITHUB_OUTPUT"
+      - name: Move onto the new release
+        id: move
+        if: steps.compare.outputs.new && env.BOT_TOKEN
+        continue-on-error: true
+        shell: bash
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global url."https://x-access-token:${BOT_TOKEN}@github.com/".insteadOf "https://github.com/"
+          python3 -c 'import yaml' 2>/dev/null || python3 -m pip install --quiet --break-system-packages pyyaml
+          bash terrasmart/move-to-upstream.sh "${{ steps.compare.outputs.new }}" 2>&1 | tee "$RUNNER_TEMP/move.log"
+      - name: Build it for VERA Development
+        id: build
+        if: steps.move.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ env.BOT_TOKEN }}
+        run: |
+          gh workflow run terrasmart-android.yml --ref "terrasmart-${{ steps.compare.outputs.new }}" \
+            -f revision=0 -f "headwind_configuration=VERA Development"
+      - name: Open an issue
+        if: always() && steps.compare.outputs.new
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW: ${{ steps.compare.outputs.new }}
+          OURS: ${{ steps.compare.outputs.ours }}
+          MOVED: ${{ steps.move.outcome }}
+          BUILT: ${{ steps.build.outcome }}
+        run: |
+          title="RustDesk $NEW is out (TerraSmart Destek is on $OURS)"
           if gh issue list --state open --search "\"$title\" in:title" --json number --jq 'length' | grep -qv '^0$'; then
             echo "Issue already open"; exit 0
           fi
-          gh issue create --title "$title" --body "RustDesk $latest: https://github.com/rustdesk/rustdesk/releases/tag/$latest
+          release="https://github.com/rustdesk/rustdesk/releases/tag/$NEW"
+          runs="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/terrasmart-android.yml?query=branch%3Aterrasmart-$NEW"
+          if [ "$MOVED" = success ] && [ "$BUILT" = success ]; then
+            body="RustDesk $NEW: $release
 
-          Move TerraSmart Destek onto it with the steps in terrasmart/README.md, build it with the TerraSmart Destek Android workflow, try it on the VERA Development tablets, then roll it out through the panel."
+          TerraSmart Destek was moved onto it as branch \`terrasmart-$NEW\` (hbb_common: \`terrasmart-$NEW\`), and the build that installs it on the VERA Development tablets through Headwind has started: $runs
+
+          Once it works there, make it the terrasmart branch and roll it out as in terrasmart/README.md."
+          elif [ "$MOVED" = failure ]; then
+            body="RustDesk $NEW: $release
+
+          Our commits do not apply on it automatically, so nothing was built:
+
+          \`\`\`
+          $(tail -n 30 "$RUNNER_TEMP/move.log" 2>/dev/null)
+          \`\`\`
+
+          Move it by hand with terrasmart/move-to-upstream.sh as in terrasmart/README.md."
+          else
+            body="RustDesk $NEW: $release
+
+          It was not moved automatically (TERRASMART_BOT_TOKEN missing, or starting the build failed: see $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID). Move it as in terrasmart/README.md."
+          fi
+          gh issue create --title "$title" --body "$body"
