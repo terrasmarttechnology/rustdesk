@@ -105,10 +105,17 @@ jobs:
       run: |
         printf '%s\n' 'Acquire::http::Timeout "15";' 'Acquire::https::Timeout "15";' 'Acquire::Retries "5";' \
           | sudo tee /etc/apt/apt.conf.d/99terrasmart-timeouts
+    - name: Restore the apt packages
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: ${{ runner.temp }}/apt-archives
+        key: apt-${{ github.job }}-${{ hashFiles('.github/workflows/terrasmart-android.yml') }}
+        restore-keys: apt-${{ github.job }}-
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
+        mkdir -p "${{ runner.temp }}/apt-archives/partial"
+        sudo apt-get install -y -o Dir::Cache::Archives="${{ runner.temp }}/apt-archives" \
              clang \
              cmake \
              curl \
@@ -137,6 +144,7 @@ jobs:
              pkg-config \
              tree \
              wget
+        sudo chown -R "$(id -u):$(id -g)" "${{ runner.temp }}/apt-archives"
     - name: Checkout source code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       with:
@@ -294,10 +302,17 @@ jobs:
       run: |
         printf '%s\n' 'Acquire::http::Timeout "15";' 'Acquire::https::Timeout "15";' 'Acquire::Retries "5";' \
           | sudo tee /etc/apt/apt.conf.d/99terrasmart-timeouts
+    - name: Restore the apt packages
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: ${{ runner.temp }}/apt-archives
+        key: apt-${{ github.job }}-${{ hashFiles('.github/workflows/terrasmart-android.yml') }}
+        restore-keys: apt-${{ github.job }}-
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y \
+        mkdir -p "${{ runner.temp }}/apt-archives/partial"
+        sudo apt-get install -y -o Dir::Cache::Archives="${{ runner.temp }}/apt-archives" \
              clang \
              cmake \
              curl \
@@ -327,6 +342,7 @@ jobs:
              pkg-config \
              tree \
              wget
+        sudo chown -R "$(id -u):$(id -g)" "${{ runner.temp }}/apt-archives"
     - name: Checkout source code
       uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
       with:

@@ -21,8 +21,9 @@ APK) and changes what they build and how it is signed and published:
 - the release is tagged destek-<version>-r<revision>;
 - the secret TERRASMART_RUSTDESK_PASSWORD, when set, becomes the app's preset
   permanent password; only its salted hash reaches the build;
-- apt gives up on a stalled mirror after seconds instead of minutes (runners'
-  Azure mirror sometimes hangs, which stretched builds from ~35 min to 2 h);
+- apt gives up on a stalled mirror after seconds instead of minutes, and the
+  .deb files are kept with actions/cache, because the runners' Azure mirror
+  sometimes crawls (100 MB in half an hour), which stretched builds to 2 h;
 - vcpkg keeps its built packages in a file cache saved with actions/cache,
   because the x-gha backend upstream uses was removed from vcpkg.
 
@@ -41,6 +42,7 @@ OUT = ROOT / ".github/workflows/terrasmart-android.yml"
 # SHA-256 of terrasmart-rustdesk.jks's certificate (CN=Terrasmart, valid to 2053).
 CERT_SHA256 = "b86ff2fa10fbd23712bc22142aff253ce4d2cd5992f6e1a9791dc6042a2dec37"
 VCPKG_CACHE = "${{ github.workspace }}-vcpkg-bincache"
+APT_CACHE = "${{ runner.temp }}/apt-archives"
 ACTIONS_CACHE = "actions/cache@caa296126883cff596d87d8935842f9db880ef25"  # v5.1.0
 ABIS = ["aarch64-linux-android", "armv7-linux-androideabi"]
 # What deploy-to-headwind.sh reads, from this repository's secrets.
@@ -156,6 +158,29 @@ def replace_once(text, old, new):
     return text.replace(old, new)
 
 
+def apt_cache_step():
+    return {
+        "name": "Restore the apt packages",
+        "uses": ACTIONS_CACHE,
+        "with": {
+            "path": APT_CACHE,
+            "key": "apt-${{ github.job }}-${{ hashFiles('.github/workflows/terrasmart-android.yml') }}",
+            "restore-keys": "apt-${{ github.job }}-",
+        },
+    }
+
+
+def cache_apt_downloads(step):
+    # apt takes the .deb files it already has from APT_CACHE and leaves new ones
+    # there; they belong to the runner user again so actions/cache can save them.
+    run = replace_once(
+        step["run"],
+        "sudo apt-get install -y ",
+        f'mkdir -p "{APT_CACHE}/partial"\nsudo apt-get install -y -o Dir::Cache::Archives="{APT_CACHE}" ',
+    )
+    step["run"] = Literal(run.rstrip("\n") + f'\nsudo chown -R "$(id -u):$(id -g)" "{APT_CACHE}"\n')
+
+
 def drop_jdk(job):
     # The rest of upstream's list is needed: bindgen finds bits/*.h only with gcc-multilib.
     step = next(s for s in job["steps"] if s.get("name") == "Install dependencies")
@@ -207,6 +232,8 @@ def adapt(job):
             continue
         if name == "Install dependencies":
             steps.append(apt_timeouts_step())
+            steps.append(apt_cache_step())
+            cache_apt_downloads(step)
         if name == "Setup vcpkg with Github Actions binary cache":
             steps.extend(vcpkg_cache_steps())
         if name == "Build rustdesk lib":
