@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """Writes .github/workflows/terrasmart-android.yml from upstream's flutter-build.yml.
 
-TerraSmart Destek only ships the Android app, so the workflow keeps upstream's
-Android jobs (bridge, per-ABI APKs, universal APK) as they are and changes how
-they are signed and published:
+TerraSmart Destek only ships the universal Android APK for the VERA tablets, so
+the workflow keeps upstream's Android jobs (bridge, per-ABI libraries, universal
+APK) and changes what they build and how it is signed and published:
 
+- only arm64-v8a and armeabi-v7a are built (the tablets are ARM; x86_64 only
+  served emulators and was the slowest job), and the per-ABI jobs stop at the
+  library: the per-ABI APKs carried an ABI versionCode offset that would block
+  updates to the universal APK, so they are not published;
+- apt installs only what these jobs use instead of upstream's desktop list;
 - the build stops when the TerraSmart signing key is missing, instead of
   publishing an APK signed with a throwaway key (how the field's 1.4.5 lost
   its key);
@@ -31,9 +36,13 @@ OUT = ROOT / ".github/workflows/terrasmart-android.yml"
 
 # SHA-256 of terrasmart-rustdesk.jks's certificate (CN=Terrasmart, valid to 2053).
 CERT_SHA256 = "b86ff2fa10fbd23712bc22142aff253ce4d2cd5992f6e1a9791dc6042a2dec37"
-JOBS = ["generate-bridge", "build-rustdesk-android", "build-rustdesk-android-universal"]
 VCPKG_CACHE = "${{ github.workspace }}-vcpkg-bincache"
 ACTIONS_CACHE = "actions/cache@caa296126883cff596d87d8935842f9db880ef25"  # v5.1.0
+ABIS = ["aarch64-linux-android", "armv7-linux-androideabi"]
+# The Rust library and its vcpkg dependencies, then the Flutter APK. Upstream installs
+# its desktop list (GTK, GStreamer, multilib, ...), some 200 packages.
+LIB_PACKAGES = "clang cmake curl git g++ libc6-dev libclang-dev llvm-dev nasm ninja-build pkg-config wget"
+APK_PACKAGES = "openjdk-17-jdk-headless"
 
 
 class Literal(str):
@@ -122,6 +131,51 @@ def vcpkg_cache_steps():
     ]
 
 
+def replace_once(text, old, new):
+    if old not in text:
+        raise SystemExit(f"upstream's workflow changed; not found: {old!r}")
+    return text.replace(old, new)
+
+
+def install_packages(job, packages):
+    step = next(s for s in job["steps"] if s.get("name") == "Install dependencies")
+    step["run"] = Literal(f"sudo apt-get update\nsudo apt-get install -y {packages}\n")
+
+
+def lib_job(job):
+    matrix = job["strategy"]["matrix"]
+    matrix["job"] = [j for j in matrix["job"] if j["target"] in ABIS]
+    if sorted(j["target"] for j in matrix["job"]) != sorted(ABIS):
+        raise SystemExit(f"upstream's Android matrix changed: {matrix['job']}")
+    names = [s.get("name") for s in job["steps"]]
+    last = names.index("Upload Rustdesk library to Artifacts")
+    job["steps"] = job["steps"][: last + 1]
+    install_packages(job, LIB_PACKAGES)
+    return job
+
+
+def apk_job(job):
+    job["steps"] = [
+        s for s in job["steps"]
+        if s.get("with", {}).get("name") != "librustdesk.so.x86_64-linux-android"
+    ]
+    build = next(s for s in job["steps"] if s.get("name") == "Build rustdesk")
+    run = build["run"]
+    for line in (
+        "mv ./flutter/android/app/src/main/jniLibs/x86_64/liblibrustdesk.so ./flutter/android/app/src/main/jniLibs/x86_64/librustdesk.so\n",
+        "cp ${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/x86_64-linux-android/libc++_shared.so ./flutter/android/app/src/main/jniLibs/x86_64/\n",
+    ):
+        run = replace_once(run, line, "")
+    run = replace_once(
+        run,
+        "--target-platform android-arm64,android-arm,android-x64${{ env.x86_target }}",
+        "--target-platform android-arm64,android-arm",
+    )
+    build["run"] = Literal(run)
+    install_packages(job, APK_PACKAGES)
+    return job
+
+
 def adapt(job):
     job.pop("if", None)  # the universal APK is always built
     needs = job.get("needs", [])
@@ -186,9 +240,9 @@ def main():
             ],
         }
     }
-    for name in JOBS:
-        job = src["jobs"][name]
-        jobs[name] = job if name == "generate-bridge" else adapt(job)
+    jobs["generate-bridge"] = src["jobs"]["generate-bridge"]
+    jobs["build-rustdesk-android"] = adapt(lib_job(src["jobs"]["build-rustdesk-android"]))
+    jobs["build-rustdesk-android-universal"] = adapt(apk_job(src["jobs"]["build-rustdesk-android-universal"]))
 
     out = {
         "name": "TerraSmart Destek Android",
