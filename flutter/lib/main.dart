@@ -182,8 +182,12 @@ void runMobileApp() async {
   await Future.wait([gFFI.abModel.loadCache(), gFFI.groupModel.loadCache()]);
   gFFI.userModel.refreshCurrentUser();
   runApp(App());
-  // TerraSmart Destek: the panel may have opened the app to start the service.
-  if (isAndroid) gFFI.serverModel.terrasmartStartIfRequested();
+  // TerraSmart Destek: report the ID at every start, not only on the Share
+  // screen tab, and start the service if the panel opened the app to do so.
+  if (isAndroid) {
+    gFFI.serverModel.fetchID();
+    gFFI.serverModel.terrasmartStartIfRequested();
+  }
   await initUniLinks();
 }
 

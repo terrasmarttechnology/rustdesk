@@ -29,6 +29,8 @@ object TerraSmartMdm {
 
     fun reportId(context: Context, id: String) {
         if (id.isEmpty()) return
+        // Tablet set-up in the panel reads the ID from here over adb (it is shown on screen anyway)
+        Log.i(TAG, "RustDesk ID: $id")
         val app = context.applicationContext
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
