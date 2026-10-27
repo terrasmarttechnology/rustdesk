@@ -9,7 +9,8 @@ APK) and changes what they build and how it is signed and published:
   served emulators and was the slowest job), and the per-ABI jobs stop at the
   library: the per-ABI APKs carried an ABI versionCode offset that would block
   updates to the universal APK, so they are not published;
-- apt installs only what these jobs use instead of upstream's desktop list;
+- the library jobs skip the JDK in upstream's apt list (only the APK build uses
+  it, and it is the package a stalled mirror held longest);
 - the universal APK goes to Headwind MDM as "TerraSmart Destek" and is set to
   install in the configuration named by the headwind_configuration input
   (deploy-to-headwind.sh);
@@ -42,10 +43,6 @@ CERT_SHA256 = "b86ff2fa10fbd23712bc22142aff253ce4d2cd5992f6e1a9791dc6042a2dec37"
 VCPKG_CACHE = "${{ github.workspace }}-vcpkg-bincache"
 ACTIONS_CACHE = "actions/cache@caa296126883cff596d87d8935842f9db880ef25"  # v5.1.0
 ABIS = ["aarch64-linux-android", "armv7-linux-androideabi"]
-# The Rust library and its vcpkg dependencies, then the Flutter APK. Upstream installs
-# its desktop list (GTK, GStreamer, multilib, ...), some 200 packages.
-LIB_PACKAGES = "clang cmake curl git g++ libc6-dev libclang-dev llvm-dev nasm ninja-build pkg-config wget"
-APK_PACKAGES = "openjdk-17-jdk-headless"
 # What deploy-to-headwind.sh reads, from this repository's secrets.
 HEADWIND_ENV = {
     "HEADWIND_MDM_URL": "${{ secrets.HEADWIND_MDM_URL }}",
@@ -159,9 +156,10 @@ def replace_once(text, old, new):
     return text.replace(old, new)
 
 
-def install_packages(job, packages):
+def drop_jdk(job):
+    # The rest of upstream's list is needed: bindgen finds bits/*.h only with gcc-multilib.
     step = next(s for s in job["steps"] if s.get("name") == "Install dependencies")
-    step["run"] = Literal(f"sudo apt-get update\nsudo apt-get install -y {packages}\n")
+    step["run"] = Literal(replace_once(step["run"], "     openjdk-17-jdk-headless \\\n", ""))
 
 
 def lib_job(job):
@@ -172,7 +170,7 @@ def lib_job(job):
     names = [s.get("name") for s in job["steps"]]
     last = names.index("Upload Rustdesk library to Artifacts")
     job["steps"] = job["steps"][: last + 1]
-    install_packages(job, LIB_PACKAGES)
+    drop_jdk(job)
     return job
 
 
@@ -194,7 +192,6 @@ def apk_job(job):
         "--target-platform android-arm64,android-arm",
     )
     build["run"] = Literal(run)
-    install_packages(job, APK_PACKAGES)
     job["steps"].append(deploy_step())
     return job
 
