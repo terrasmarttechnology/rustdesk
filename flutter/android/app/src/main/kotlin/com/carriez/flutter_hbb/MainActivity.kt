@@ -223,7 +223,20 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    // TerraSmart Destek: opened by the panel to start the service, see TerraSmartMdm.
+    private var terrasmartStartRequested = false
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (TerraSmartMdm.isStartRequest(intent)) {
+            terrasmartStartRequested = true
+            flutterMethodChannel?.invokeMethod("terrasmart_start_service", null)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        terrasmartStartRequested = TerraSmartMdm.isStartRequest(intent)
         super.onCreate(savedInstanceState)
         if (_rdClipboardManager == null) {
             _rdClipboardManager = RdClipboardManager(getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
@@ -279,7 +292,11 @@ class MainActivity : FlutterActivity() {
                 }
                 "terrasmart_report_id" -> {
                     TerraSmartMdm.reportId(this, call.arguments as? String ?: "")
-                    result.success(null)
+                    result.success(true)
+                }
+                "terrasmart_take_start_request" -> {
+                    result.success(terrasmartStartRequested)
+                    terrasmartStartRequested = false
                 }
                 "start_capture" -> {
                     mainService?.let {

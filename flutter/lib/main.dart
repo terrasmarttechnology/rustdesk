@@ -182,6 +182,8 @@ void runMobileApp() async {
   await Future.wait([gFFI.abModel.loadCache(), gFFI.groupModel.loadCache()]);
   gFFI.userModel.refreshCurrentUser();
   runApp(App());
+  // TerraSmart Destek: the panel may have opened the app to start the service.
+  if (isAndroid) gFFI.serverModel.terrasmartStartIfRequested();
   await initUniLinks();
 }
 

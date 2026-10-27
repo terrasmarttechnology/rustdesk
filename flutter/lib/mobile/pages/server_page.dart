@@ -918,6 +918,11 @@ void androidChannelInit() {
             AndroidPermissionManager.complete(type, result);
             break;
           }
+        case "terrasmart_start_service":
+          {
+            gFFI.serverModel.terrasmartStartIfRequested();
+            break;
+          }
         case "on_media_projection_canceled":
           {
             gFFI.serverModel.stopService();

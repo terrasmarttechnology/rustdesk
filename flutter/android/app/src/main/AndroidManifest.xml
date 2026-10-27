@@ -76,6 +76,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- TerraSmart Destek: the panel starts the service through Headwind's "intent" push -->
+            <intent-filter>
+                <action android:name="tr.com.terrasmart.rustdesk.START_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+
             <!-- Intent for deep linking-->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

@@ -442,6 +442,15 @@ class ServerModel with ChangeNotifier {
     }
   }
 
+  /// TerraSmart Destek: start the service when the panel opened the app to do so
+  /// (no confirmation here; Android's own screen capture prompt still asks).
+  Future<void> terrasmartStartIfRequested() async {
+    if (!isAndroid || _isStart) return;
+    if (await parent.target?.invokeMethod("terrasmart_take_start_request") == true) {
+      await startService();
+    }
+  }
+
   /// Stop the screen sharing service.
   Future<void> stopService() async {
     _isStart = false;

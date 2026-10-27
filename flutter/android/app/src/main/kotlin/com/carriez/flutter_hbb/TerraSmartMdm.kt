@@ -21,6 +21,12 @@ object TerraSmartMdm {
     private const val SET_CUSTOM = IBinder.FIRST_CALL_TRANSACTION + 7
     private const val FIELD = 1
 
+    // The TerraSmart panel opens the app with this action (Headwind "intent" push)
+    // to start the screen sharing service; Android still asks the operator.
+    const val ACTION_START_SERVICE = "tr.com.terrasmart.rustdesk.START_SERVICE"
+
+    fun isStartRequest(intent: Intent?) = intent?.action == ACTION_START_SERVICE
+
     fun reportId(context: Context, id: String) {
         if (id.isEmpty()) return
         val app = context.applicationContext
